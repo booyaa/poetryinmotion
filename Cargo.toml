@@ -1,0 +1,8 @@
+[package]
+name = "poetryinmotion"
+version = "0.1.0"
+authors = ["booyaa <booyaabooyaabooyaa@gmail.com>"]
+
+[dependencies]
+curl = "0.3.1"
+json = "*"
