@@ -100,17 +100,10 @@ fn main() {
             } else {
                 println!("Error: Are you connected to the internet?");
             }
-            // match response.err() {
-            //     Some(Error::InvalidApiKey) => println!("Error: invalid API key!"),
-            //     Some(Error::NoInternet) => println!("Error: Are you connected to the internet?"),
-            //     _ => (),
-            // }
             std::process::exit(1);
         }
 
         let raw = response.unwrap();
-
-        // println!("{}", raw);
 
         let parsed = json::parse(&raw);
 
