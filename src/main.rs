@@ -6,53 +6,54 @@ extern crate csv;
 use std::env;
 use curl::easy::Easy;
 
-#[allow(dead_code)]
-const W3W_RESPONSE: &'static str = r#"
-{
-    "crs": {
-        "type": "link",
-        "properties": {
-            "href": "http://spatialreference.org/ref/epsg/4326/ogcwkt/",
-            "type": "ogcwkt"
-        }
-    },
-    "words": "index.home.raft",
-    "bounds": {
-        "southwest": {
-            "lng": -0.203607,
-            "lat": 51.521238
-        },
-        "northeast": {
-            "lng": -0.203564,
-            "lat": 51.521265
-        }
-    },
-    "geometry": {
-        "lng": -0.203586,
-        "lat": 51.521251
-    },
-    "language": "en",
-    "map": "http://w3w.co/index.home.raft",
-    "status": {
-        "code": 200,
-        "message": "OK"
-    },
-    "thanks": "Thanks from all of us at index.home.raft for using a what3words API"
-}
-"#;
+// #[allow(dead_code)]
+// const W3W_RESPONSE: &'static str = r#"
+// {
+//     "crs": {
+//         "type": "link",
+//         "properties": {
+//             "href": "http://spatialreference.org/ref/epsg/4326/ogcwkt/",
+//             "type": "ogcwkt"
+//         }
+//     },
+//     "words": "index.home.raft",
+//     "bounds": {
+//         "southwest": {
+//             "lng": -0.203607,
+//             "lat": 51.521238
+//         },
+//         "northeast": {
+//             "lng": -0.203564,
+//             "lat": 51.521265
+//         }
+//     },
+//     "geometry": {
+//         "lng": -0.203586,
+//         "lat": 51.521251
+//     },
+//     "language": "en",
+//     "map": "http://w3w.co/index.home.raft",
+//     "status": {
+//         "code": 200,
+//         "message": "OK"
+//     },
+//     "thanks": "Thanks from all of us at index.home.raft for using a what3words API"
+// }
+// "#;
 
-#[allow(dead_code)]
-const CSV_TEST_DATA: &'static str = "
-work, 51.521251, -0.203586
-travelling, 51.5412621, \
-                                     -0.08813879999999999
-";
+// #[allow(dead_code)]
+// const CSV_TEST_DATA: &'static str = "
+// work, 51.521251, -0.203586
+// travelling, 51.5412621, \
+//                                      -0.08813879999999999
+// ";
 
 const BASE_URL: &'static str = "https://api.what3words.com/v2";
 
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 pub enum Error {
     InvalidApiKey,
+    NoInternet,
 }
 
 fn reverse_url(api: &str, lat: &f64, lng: &f64) -> String {
@@ -66,12 +67,12 @@ fn reverse_url(api: &str, lat: &f64, lng: &f64) -> String {
     url.to_string()
 }
 
-#[allow(dead_code)]
 fn call_w3w(url: &str) -> Result<String, Error> {
     let mut handle = Easy::new();
     let mut data = Vec::new();
 
     handle.url(&url.to_string()).unwrap();
+
     {
         let mut transfer = handle.transfer();
         transfer.write_function(|new_data| {
@@ -79,17 +80,27 @@ fn call_w3w(url: &str) -> Result<String, Error> {
                     Ok(new_data.len())
                 })
                 .unwrap();
+
+        // either of these two lines will cause data_string to combine all responses from the
+        // server rather than return them as individual responses
+
+        // println!("transfer.perform is_err: {}", transfer.perform().is_err());
+
+        // if transfer.perform().is_err() {
+        //     return Err(Error::NoInternet);
+        // }
+
         transfer.perform().unwrap();
     }
 
-    println!("{:?}", handle.response_code());
-    let data_string = String::from_utf8(data.clone());
+    let data_string = String::from_utf8(data.clone()).unwrap();
 
     if handle.response_code().unwrap() == 401 {
         return Err(Error::InvalidApiKey);
     }
 
-    Ok(data_string.unwrap().to_string())
+    println!("call_w3w: [{}]", data_string.to_string());
+    Ok(data_string.to_string())
 }
 
 fn main() {
@@ -101,7 +112,11 @@ fn main() {
 
     let api_key = api_key_result.unwrap();
 
-    let mut coords = csv::Reader::from_string(CSV_TEST_DATA).has_headers(false);
+    let mut args = env::args();
+    let _program_name = args.next().unwrap();
+    let csv = args.next().expect("Missing csv file!");
+
+    let mut coords = csv::Reader::from_file(csv).unwrap().has_headers(false);
 
     for row in coords.decode() {
         let (place, lat, lng): (String, f64, f64) = row.unwrap();
@@ -111,13 +126,33 @@ fn main() {
         let response = call_w3w(&url);
 
         if response.is_err() {
-            println!("Error: invalid API key!");
+            let err = response.err().unwrap();
+            if err == Error::InvalidApiKey {
+                println!("Error: invalid API key!");
+            } else {
+                println!("Error: Are you connected to the internet?");
+            }
+            // match response.err() {
+            //     Some(Error::InvalidApiKey) => println!("Error: invalid API key!"),
+            //     Some(Error::NoInternet) => println!("Error: Are you connected to the internet?"),
+            //     _ => (),
+            // }
             std::process::exit(1);
         }
 
-        let parsed = json::parse(&response.unwrap()).unwrap();
+        let raw = response.unwrap();
+
+        // println!("{}", raw);
+
+        let parsed = json::parse(&raw);
+
+        if parsed.is_err() {
+            println!("Error: failed to parse json!\n\t{}", raw);
+            return;
+        }
+
         println!("{} - {}",
                  place,
-                 parsed["words"].to_string().replace(".", " "));
+                 parsed.unwrap()["words"].to_string().replace(".", " "));
     }
 }
