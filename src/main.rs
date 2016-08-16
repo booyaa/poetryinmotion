@@ -6,48 +6,6 @@ extern crate csv;
 use std::env;
 use curl::easy::Easy;
 
-// #[allow(dead_code)]
-// const W3W_RESPONSE: &'static str = r#"
-// {
-//     "crs": {
-//         "type": "link",
-//         "properties": {
-//             "href": "http://spatialreference.org/ref/epsg/4326/ogcwkt/",
-//             "type": "ogcwkt"
-//         }
-//     },
-//     "words": "index.home.raft",
-//     "bounds": {
-//         "southwest": {
-//             "lng": -0.203607,
-//             "lat": 51.521238
-//         },
-//         "northeast": {
-//             "lng": -0.203564,
-//             "lat": 51.521265
-//         }
-//     },
-//     "geometry": {
-//         "lng": -0.203586,
-//         "lat": 51.521251
-//     },
-//     "language": "en",
-//     "map": "http://w3w.co/index.home.raft",
-//     "status": {
-//         "code": 200,
-//         "message": "OK"
-//     },
-//     "thanks": "Thanks from all of us at index.home.raft for using a what3words API"
-// }
-// "#;
-
-// #[allow(dead_code)]
-// const CSV_TEST_DATA: &'static str = "
-// work, 51.521251, -0.203586
-// travelling, 51.5412621, \
-//                                      -0.08813879999999999
-// ";
-
 const BASE_URL: &'static str = "https://api.what3words.com/v2";
 
 #[derive(Debug,PartialEq)]
@@ -82,8 +40,18 @@ fn call_w3w(url: &str) -> Result<String, Error> {
                 .unwrap();
 
         // either of these two lines will cause data_string to combine all responses from the
-        // server rather than return them as individual responses
+        // server rather than return them as individual responses:
 
+        // if you don't call is_err():
+        // [{"crs":{"type":"link","properties":{"href":"http:\/\/spatialreference.org\/ref\/epsg\/4326\/ogcwkt\/","type":"ogcwkt"}},"words":"index.home.raft*snip*]
+        // [{"crs":{"type":"link","properties":{"href":"http:\/\/spatialreference.org\/ref\/epsg\/4326\/ogcwkt\/","type":"ogcwkt"}},"words":"copper.tent.fled*snip*]
+
+        // if you do
+        // [{"crs":{"type":"link","properties":{"href":"http:\/\/spatialreference.org\/ref\/epsg\/4326\/ogcwkt\/","type":"ogcwkt"}},"words":"index.home.raft*snip*
+        //  {"crs":{"type":"link","properties":{"href":"http:\/\/spatialreference.org\/ref\/epsg\/4326\/ogcwkt\/","type":"ogcwkt"}},"words":"copper.tent.fled*snip*]
+
+
+        // either of these will trigger the side effect:
         // println!("transfer.perform is_err: {}", transfer.perform().is_err());
 
         // if transfer.perform().is_err() {
