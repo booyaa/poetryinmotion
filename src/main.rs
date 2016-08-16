@@ -1,10 +1,12 @@
 #[macro_use]
 extern crate curl;
 extern crate json;
-use std::env;
-use curl::easy::{Easy, List};
+extern crate csv;
 
-const BASE_URL: &'static str = "https://api.what3words.com/v2";
+use std::env;
+use curl::easy::Easy;
+
+#[allow(dead_code)]
 const W3W_RESPONSE: &'static str = r#"
 {
     "crs": {
@@ -38,19 +40,34 @@ const W3W_RESPONSE: &'static str = r#"
     "thanks": "Thanks from all of us at index.home.raft for using a what3words API"
 }
 "#;
-fn reverse_url(api: &str) -> String {
+
+#[allow(dead_code)]
+const CSV_TEST_DATA: &'static str = "
+work, 51.521251, -0.203586
+travelling, 51.5412621, \
+                                     -0.08813879999999999
+";
+
+const BASE_URL: &'static str = "https://api.what3words.com/v2";
+
+#[derive(Debug)]
+pub enum Error {
+    InvalidApiKey,
+}
+
+fn reverse_url(api: &str, lat: &f64, lng: &f64) -> String {
     let mut url = String::new();
 
     url.push_str(BASE_URL);
-    url.push_str("/reverse?coords=51.521251%2C-0.203586&key=");
-    url.push_str(&api);
+    url.push_str(&format!("/reverse?coords={}%2C{}", &lat, &lng));
+    url.push_str(&format!("&key={}", &api));
     url.push_str("&lang=en&format=json&display=full");
 
     url.to_string()
 }
 
 #[allow(dead_code)]
-fn call_w3w(url: &str) -> String {
+fn call_w3w(url: &str) -> Result<String, Error> {
     let mut handle = Easy::new();
     let mut data = Vec::new();
 
@@ -65,9 +82,14 @@ fn call_w3w(url: &str) -> String {
         transfer.perform().unwrap();
     }
 
+    println!("{:?}", handle.response_code());
     let data_string = String::from_utf8(data.clone());
 
-    data_string.unwrap().to_string()
+    if handle.response_code().unwrap() == 401 {
+        return Err(Error::InvalidApiKey);
+    }
+
+    Ok(data_string.unwrap().to_string())
 }
 
 fn main() {
@@ -78,26 +100,24 @@ fn main() {
     }
 
     let api_key = api_key_result.unwrap();
-    let url = reverse_url(&api_key);
 
-    println!("url: {}", url);
+    let mut coords = csv::Reader::from_string(CSV_TEST_DATA).has_headers(false);
 
-    // let response = call_w3w(&url);
+    for row in coords.decode() {
+        let (place, lat, lng): (String, f64, f64) = row.unwrap();
 
-    let response = json::parse(W3W_RESPONSE).unwrap();
+        let url = reverse_url(&api_key, &lat, &lng);
 
-    // println!("{:?}", response);
+        let response = call_w3w(&url);
 
-    println!("words: {}", response["words"]);
+        if response.is_err() {
+            println!("Error: invalid API key!");
+            std::process::exit(1);
+        }
 
-    let (lng, lat) = (&response["geometry"]["lng"], &response["geometry"]["lat"]);
-
-    println!("lat: {} lng: {}", lat, lng);
-
-    // println!("{}", foo);
-    // let reverse = json::parse(&foo);
-
-    // println!("{:?}", reverse.unwrap());
-
-
+        let parsed = json::parse(&response.unwrap()).unwrap();
+        println!("{} - {}",
+                 place,
+                 parsed["words"].to_string().replace(".", " "));
+    }
 }
