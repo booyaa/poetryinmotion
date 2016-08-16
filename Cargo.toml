@@ -1,8 +1,15 @@
 [package]
 name = "poetryinmotion"
 version = "0.1.0"
-authors = ["booyaa <booyaabooyaabooyaa@gmail.com>"]
+authors = ["Mark Sta Ana <booyaabooyaabooyaa@gmail.com>"]
+description = "A poem for life's journey"
+repository = "https://github.com/booyaa/poetryinmotion"
+readme = "README.md"
+keywords = ["poetry","w3w","gps"]
+license = "Apache-2.0"
+
 
 [dependencies]
 curl = "0.3.1"
 json = "*"
+csv = "0.14"
