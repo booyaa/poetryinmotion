@@ -13,6 +13,7 @@ pub enum Error {
     InvalidApiKey,
     NoInternet,
     BadUrl,
+    BadResponseCode,
 }
 
 fn reverse_url(api: &str, lat: &f64, lng: &f64) -> String {
@@ -31,7 +32,7 @@ fn call_w3w(url: &str) -> Result<String, Error> {
     let mut data = Vec::new();
 
     try!(handle.url(&url).map_err(|_| Error::BadUrl));
-    handle.fail_on_error(true);
+    let _ = handle.fail_on_error(true);
     {
         let mut transfer = handle.transfer();
         transfer.write_function(|new_data| {
@@ -47,7 +48,7 @@ fn call_w3w(url: &str) -> Result<String, Error> {
 
     let data_string = String::from_utf8(data.clone()).unwrap();
 
-    if handle.response_code().unwrap() == 401 {
+    if try!(handle.response_code().map_err(|_| Error::BadResponseCode)) == 401 {
         return Err(Error::InvalidApiKey);
     }
 
