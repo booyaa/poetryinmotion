@@ -12,6 +12,7 @@ const BASE_URL: &'static str = "https://api.what3words.com/v2";
 pub enum Error {
     InvalidApiKey,
     NoInternet,
+    BadUrl,
 }
 
 fn reverse_url(api: &str, lat: &f64, lng: &f64) -> String {
@@ -29,8 +30,8 @@ fn call_w3w(url: &str) -> Result<String, Error> {
     let mut handle = Easy::new();
     let mut data = Vec::new();
 
-    handle.url(&url.to_string()).unwrap();
-
+    try!(handle.url(&url).map_err(|_| Error::BadUrl));
+    handle.fail_on_error(true);
     {
         let mut transfer = handle.transfer();
         transfer.write_function(|new_data| {
@@ -39,26 +40,9 @@ fn call_w3w(url: &str) -> Result<String, Error> {
                 })
                 .unwrap();
 
-        // either of these two lines will cause data_string to combine all responses from the
-        // server rather than return them as individual responses:
-
-        // if you don't call is_err():
-        // [{"crs":{"type":"link","properties":{"href":"http:\/\/spatialreference.org\/ref\/epsg\/4326\/ogcwkt\/","type":"ogcwkt"}},"words":"index.home.raft*snip*]
-        // [{"crs":{"type":"link","properties":{"href":"http:\/\/spatialreference.org\/ref\/epsg\/4326\/ogcwkt\/","type":"ogcwkt"}},"words":"copper.tent.fled*snip*]
-
-        // if you do
-        // [{"crs":{"type":"link","properties":{"href":"http:\/\/spatialreference.org\/ref\/epsg\/4326\/ogcwkt\/","type":"ogcwkt"}},"words":"index.home.raft*snip*
-        //  {"crs":{"type":"link","properties":{"href":"http:\/\/spatialreference.org\/ref\/epsg\/4326\/ogcwkt\/","type":"ogcwkt"}},"words":"copper.tent.fled*snip*]
-
-
-        // either of these will trigger the side effect:
-        // println!("transfer.perform is_err: {}", transfer.perform().is_err());
-
-        // if transfer.perform().is_err() {
-        //     return Err(Error::NoInternet);
-        // }
-
-        transfer.perform().unwrap();
+        if transfer.perform().is_err() {
+            return Err(Error::NoInternet);
+        }
     }
 
     let data_string = String::from_utf8(data.clone()).unwrap();
@@ -67,7 +51,6 @@ fn call_w3w(url: &str) -> Result<String, Error> {
         return Err(Error::InvalidApiKey);
     }
 
-    println!("call_w3w: [{}]", data_string.to_string());
     Ok(data_string.to_string())
 }
 
